@@ -1,0 +1,38 @@
+      - name: Unzip & replace source if zip present
+        run: |
+          ZIP=$(ls *.zip 2>/dev/null | head -1)
+          if [ -n "$ZIP" ]; then
+            rm -rf src .github build.gradle gradle.properties settings.gradle README.md
+            unzip "$ZIP"
+            FOLDER=$(unzip -Z1 "$ZIP" | head -1 | cut -d/ -f1)
+            cp -r "$FOLDER/." .
+            rm -rf "$FOLDER" "$ZIP"
+          fi
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Setup Gradle wrapper
+        run: |
+          wget -q https://services.gradle.org/distributions/gradle-8.8-bin.zip -O /tmp/gradle.zip
+          unzip -q /tmp/gradle.zip -d /opt/gradle
+          /opt/gradle/gradle-8.8/bin/gradle wrapper --gradle-version 8.8
+          chmod +x gradlew
+
+      - uses: actions/cache@v4
+        ...
+
+      - name: Build
+        run: |
+          SUCCESS=false
+          for i in 1 2 3; do
+            if ./gradlew build --no-daemon --max-workers 2; then
+              SUCCESS=true; break
+            fi
+            echo "Retry $i failed, waiting 30s..."
+            sleep 30
+          done
+          if [ "$SUCCESS" != "true" ]; then exit 1; fi
+          ls -la build/libs/
